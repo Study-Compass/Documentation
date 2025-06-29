@@ -1,0 +1,631 @@
+---
+title: 'SAML Authentication'
+description: 'Learn how to integrate SAML authentication with Study Compass for university SSO'
+openapi: 'https://raw.githubusercontent.com/your-repo/study-compass-api/main/openapi.yaml'
+---
+
+# SAML Authentication
+
+Study Compass supports SAML 2.0 authentication for seamless university single sign-on (SSO) integration. This allows students and staff to authenticate using their institutional credentials.
+
+<Note>
+This documentation covers the complete SAML integration process for universities implementing Study Compass authentication.
+</Note>
+
+## Overview
+
+<CardGroup cols={2}>
+  <Card
+    title="Multi-Tenant Architecture"
+    icon="building"
+    href="/docs/saml/architecture"
+  >
+    Each university subdomain has its own SAML configuration, ensuring complete isolation and security.
+  </Card>
+  <Card
+    title="Flexible Attribute Mapping"
+    icon="settings"
+    href="/docs/saml/configuration"
+  >
+    Configurable mapping between SAML attributes and user fields for seamless integration.
+  </Card>
+  <Card
+    title="Automatic User Provisioning"
+    icon="user-plus"
+    href="/docs/saml/user-provisioning"
+  >
+    Users are automatically created and updated from SAML attributes with configurable rules.
+  </Card>
+  <Card
+    title="OAuth Coexistence"
+    icon="key"
+    href="/docs/saml/oauth-integration"
+  >
+    SAML works alongside existing Google OAuth authentication for maximum flexibility.
+  </Card>
+</CardGroup>
+
+## Quick Start
+
+<Steps>
+  <Step title="Request SAML Information">
+    Contact your university's IT department to obtain:
+    <ul>
+      <li>SAML metadata XML file or metadata URL</li>
+      <li>Identity Provider (IdP) configuration details</li>
+      <li>User attribute mapping information</li>
+    </ul>
+  </Step>
+  <Step title="Configure Study Compass">
+    Use our interactive setup script to configure SAML:
+    <CodeGroup>
+      <CodeGroupItem title="Interactive Setup">
+        ```bash
+        npm run setup-saml berkeley --interactive
+        ```
+      </CodeGroupItem>
+      <CodeGroupItem title="API Configuration">
+        ```bash
+        curl -X POST https://berkeley.study-compass.com/auth/saml/config \
+          -H "Content-Type: application/json" \
+          -H "Authorization: Bearer <admin-token>" \
+          -d @saml-config.json
+        ```
+      </CodeGroupItem>
+    </CodeGroup>
+  </Step>
+  <Step title="Test Integration">
+    Validate your configuration and test the authentication flow:
+    <CodeGroup>
+      <CodeGroupItem title="Test Configuration">
+        ```bash
+        curl -X POST https://berkeley.study-compass.com/auth/saml/test \
+          -H "Authorization: Bearer <admin-token>"
+        ```
+      </CodeGroupItem>
+      <CodeGroupItem title="Get Metadata">
+        ```bash
+        curl -X GET https://berkeley.study-compass.com/auth/saml/metadata
+        ```
+      </CodeGroupItem>
+    </CodeGroup>
+  </Step>
+  <Step title="Activate & Monitor">
+    Activate the configuration and monitor authentication success rates.
+  </Step>
+</Steps>
+
+## Architecture
+
+<AccordionGroup>
+  <Accordion title="Multi-Tenant Design" defaultOpen>
+    Study Compass uses a multi-tenant architecture where each university subdomain has its own:
+    
+    - **Database connection** - Isolated data storage
+    - **SAML configuration** - University-specific IdP settings
+    - **User provisioning rules** - Custom attribute mapping
+    - **Security policies** - Institution-specific requirements
+    
+    <CodeGroup>
+      <CodeGroupItem title="Subdomain Structure">
+        ```text
+        berkeley.study-compass.com  → Berkeley SAML config
+        rpi.study-compass.com       → RPI SAML config
+        stanford.study-compass.com  → Stanford SAML config
+        ```
+      </CodeGroupItem>
+    </CodeGroup>
+  </Accordion>
+  
+  <Accordion title="Authentication Flow">
+    <Steps>
+      <Step title="User Initiates Login">
+        User clicks "Sign in with University" button
+      </Step>
+      <Step title="SAML Request">
+        Study Compass generates SAML authentication request
+      </Step>
+      <Step title="IdP Authentication">
+        User authenticates with university IdP
+      </Step>
+      <Step title="SAML Response">
+        IdP sends signed SAML response with user attributes
+      </Step>
+      <Step title="User Creation/Update">
+        Study Compass processes response and creates/updates user
+      </Step>
+      <Step title="JWT Token">
+        User receives JWT token for API access
+      </Step>
+    </Steps>
+  </Accordion>
+  
+  <Accordion title="Security Model">
+    <Tabs>
+      <Tab title="Certificate Validation">
+        - X509 certificate verification for all SAML messages
+        - Support for multiple certificates and rotation
+        - Certificate chain validation
+      </Tab>
+      <Tab title="Message Security">
+        - Signed assertions (configurable)
+        - Encrypted assertions (optional)
+        - Relay state validation
+        - Replay attack prevention
+      </Tab>
+      <Tab title="Session Management">
+        - Secure HTTP-only cookies
+        - JWT token expiration
+        - Refresh token rotation
+        - Single logout support
+      </Tab>
+    </Tabs>
+  </Accordion>
+</AccordionGroup>
+
+## API Reference
+
+### Authentication Endpoints
+
+<RequestExample>
+  <RequestExampleMethod method="GET" path="/auth/saml/login" />
+  <RequestExampleResponse>
+    ```json
+    {
+      "success": true,
+      "redirectUrl": "https://auth.berkeley.edu/saml/sso?SAMLRequest=..."
+    }
+    ```
+  </RequestExampleResponse>
+</RequestExample>
+
+<RequestExample>
+  <RequestExampleMethod method="POST" path="/auth/saml/callback" />
+  <RequestExampleResponse>
+    ```json
+    {
+      "success": true,
+      "message": "SAML authentication successful",
+      "data": {
+        "user": {
+          "id": "507f1f77bcf86cd799439011",
+          "username": "jdoe",
+          "email": "jdoe@berkeley.edu",
+          "name": "John Doe",
+          "roles": ["user"]
+        }
+      }
+    }
+    ```
+  </RequestExampleResponse>
+</RequestExample>
+
+### Configuration Management
+
+<RequestExample>
+  <RequestExampleMethod method="GET" path="/auth/saml/config" />
+  <RequestExampleResponse>
+    ```json
+    {
+      "success": true,
+      "data": {
+        "school": "berkeley",
+        "entityId": "https://berkeley.study-compass.com/auth/saml/metadata",
+        "idp": {
+          "entityId": "https://auth.berkeley.edu/saml/metadata",
+          "ssoUrl": "https://auth.berkeley.edu/saml/sso",
+          "sloUrl": "https://auth.berkeley.edu/saml/slo"
+        },
+        "attributeMapping": {
+          "email": "email",
+          "username": "username",
+          "firstName": "firstName",
+          "lastName": "lastName"
+        },
+        "userProvisioning": {
+          "autoCreateUsers": true,
+          "autoUpdateUsers": true,
+          "defaultRoles": ["user"]
+        },
+        "isActive": true
+      }
+    }
+    ```
+  </RequestExampleResponse>
+</RequestExample>
+
+<RequestExample>
+  <RequestExampleMethod method="POST" path="/auth/saml/config" />
+  <RequestExampleResponse>
+    ```json
+    {
+      "success": true,
+      "message": "SAML configuration created successfully",
+      "data": {
+        "id": "507f1f77bcf86cd799439012"
+      }
+    }
+    ```
+  </RequestExampleResponse>
+</RequestExample>
+
+## Configuration Options
+
+### SAML Settings
+
+<Table>
+  <TableHead>
+    <TableRow>
+      <TableHeader>Setting</TableHeader>
+      <TableHeader>Default</TableHeader>
+      <TableHeader>Description</TableHeader>
+    </TableRow>
+  </TableHead>
+  <TableBody>
+    <TableRow>
+      <TableCell><code>wantAssertionsSigned</code></TableCell>
+      <TableCell><Badge variant="success">true</Badge></TableCell>
+      <TableCell>Require signed assertions from IdP</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell><code>wantMessageSigned</code></TableCell>
+      <TableCell><Badge variant="error">false</Badge></TableCell>
+      <TableCell>Require signed SAML messages</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell><code>wantNameId</code></TableCell>
+      <TableCell><Badge variant="success">true</Badge></TableCell>
+      <TableCell>Include NameID in requests</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell><code>signatureAlgorithm</code></TableCell>
+      <TableCell><code>sha256</code></TableCell>
+      <TableCell>Signature algorithm for requests</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell><code>digestAlgorithm</code></TableCell>
+      <TableCell><code>sha256</code></TableCell>
+      <TableCell>Digest algorithm for signatures</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+
+### Attribute Mapping
+
+Configure how SAML attributes map to user fields:
+
+<CodeGroup>
+  <CodeGroupItem title="Standard Mapping">
+    ```json
+    {
+      "attributeMapping": {
+        "email": "email",
+        "username": "username",
+        "firstName": "firstName",
+        "lastName": "lastName",
+        "displayName": "displayName",
+        "studentId": "studentId",
+        "department": "department",
+        "role": "role"
+      }
+    }
+    ```
+  </CodeGroupItem>
+  <CodeGroupItem title="Custom Mapping">
+    ```json
+    {
+      "attributeMapping": {
+        "email": "mail",
+        "username": "uid",
+        "firstName": "givenName",
+        "lastName": "sn",
+        "studentId": "employeeNumber",
+        "department": "ou"
+      }
+    }
+    ```
+  </CodeGroupItem>
+</CodeGroup>
+
+### User Provisioning
+
+<Table>
+  <TableHead>
+    <TableRow>
+      <TableHeader>Setting</TableHeader>
+      <TableHeader>Default</TableHeader>
+      <TableHeader>Description</TableHeader>
+    </TableRow>
+  </TableHead>
+  <TableBody>
+    <TableRow>
+      <TableCell><code>autoCreateUsers</code></TableCell>
+      <TableCell><Badge variant="success">true</Badge></TableCell>
+      <TableCell>Automatically create new users from SAML</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell><code>autoUpdateUsers</code></TableCell>
+      <TableCell><Badge variant="success">true</Badge></TableCell>
+      <TableCell>Update existing users with SAML attributes</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell><code>defaultRoles</code></TableCell>
+      <TableCell><code>["user"]</code></TableCell>
+      <TableCell>Default roles for new users</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell><code>usernameGeneration</code></TableCell>
+      <TableCell><code>email_prefix</code></TableCell>
+      <TableCell>How to generate usernames (email_prefix, student_id, custom)</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+
+## Integration Guide
+
+### Step 1: Gather University Information
+
+<Callout type="info">
+  Start by collecting the necessary SAML configuration details from your university's IT department.
+</Callout>
+
+**Required Information:**
+
+<CardGroup cols={2}>
+  <Card title="SAML Metadata">
+    <ul>
+      <li>SAML metadata XML file</li>
+      <li>Metadata URL endpoint</li>
+      <li>Entity ID</li>
+    </ul>
+  </Card>
+  <Card title="IdP Configuration">
+    <ul>
+      <li>SSO URL</li>
+      <li>SLO URL (optional)</li>
+      <li>X509 Certificate</li>
+    </ul>
+  </Card>
+  <Card title="User Attributes">
+    <ul>
+      <li>Email attribute name</li>
+      <li>Name attribute names</li>
+      <li>Student ID attribute</li>
+    </ul>
+  </Card>
+  <Card title="Technical Details">
+    <ul>
+      <li>Signature algorithms</li>
+      <li>NameID format</li>
+      <li>Security requirements</li>
+    </ul>
+  </Card>
+</CardGroup>
+
+### Step 2: Configure Study Compass
+
+<CodeGroup>
+  <CodeGroupItem title="Interactive Setup">
+    ```bash
+    # Run interactive setup script
+    npm run setup-saml berkeley --interactive
+    
+    # Follow the prompts to enter:
+    # - Base URL
+    # - IdP Entity ID
+    # - SSO/SLO URLs
+    # - X509 Certificate
+    # - Attribute mapping
+    ```
+  </CodeGroupItem>
+  <CodeGroupItem title="API Configuration">
+    ```bash
+    # Create configuration via API
+    curl -X POST https://berkeley.study-compass.com/auth/saml/config \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer <admin-token>" \
+      -d @saml-config.json
+    ```
+  </CodeGroupItem>
+</CodeGroup>
+
+### Step 3: Test the Integration
+
+<Steps>
+  <Step title="Validate Configuration">
+    ```bash
+    curl -X POST https://berkeley.study-compass.com/auth/saml/test \
+      -H "Authorization: Bearer <admin-token>"
+    ```
+  </Step>
+  <Step title="Check Metadata">
+    ```bash
+    curl -X GET https://berkeley.study-compass.com/auth/saml/metadata
+    ```
+  </Step>
+  <Step title="Test Login Flow">
+    ```bash
+    # Get test login URL
+    curl -X GET https://berkeley.study-compass.com/auth/saml/test-login \
+      -H "Authorization: Bearer <admin-token>"
+    ```
+  </Step>
+</Steps>
+
+### Step 4: Activate and Monitor
+
+<Callout type="warning">
+  Always test thoroughly before activating SAML authentication in production.
+</Callout>
+
+<CodeGroup>
+  <CodeGroupItem title="Activate Configuration">
+    ```json
+    {
+      "isActive": true
+    }
+    ```
+  </CodeGroupItem>
+  <CodeGroupItem title="Monitor Logs">
+    ```bash
+    # Check authentication logs
+    tail -f logs/app.log | grep -i saml
+    
+    # Monitor success rates
+    curl -X GET https://berkeley.study-compass.com/admin/health
+    ```
+  </CodeGroupItem>
+</CodeGroup>
+
+## Troubleshooting
+
+### Common Issues
+
+<AccordionGroup>
+  <Accordion title="Certificate Errors">
+    <Tabs>
+      <Tab title="Invalid Certificate">
+        **Error:** `Invalid X509 certificate format`
+        
+        **Solution:**
+        - Ensure certificate is in PEM format
+        - Check for proper BEGIN/END markers
+        - Verify certificate is not expired
+      </Tab>
+      <Tab title="Certificate Chain">
+        **Error:** `Certificate chain validation failed`
+        
+        **Solution:**
+        - Include intermediate certificates
+        - Verify certificate authority
+        - Check certificate order
+      </Tab>
+    </Tabs>
+  </Accordion>
+  
+  <Accordion title="URL Mismatches">
+    <Tabs>
+      <Tab title="Invalid URLs">
+        **Error:** `Invalid URL format`
+        
+        **Solution:**
+        - Ensure all URLs are accessible
+        - Check for trailing slashes
+        - Verify HTTPS vs HTTP
+      </Tab>
+      <Tab title="Relay State">
+        **Error:** `Invalid relay state`
+        
+        **Solution:**
+        - Check relay state validation
+        - Verify cookie settings
+        - Ensure proper session handling
+      </Tab>
+    </Tabs>
+  </Accordion>
+  
+  <Accordion title="Attribute Mapping">
+    <Tabs>
+      <Tab title="Missing Attributes">
+        **Error:** `Required attribute not found`
+        
+        **Solution:**
+        - Verify SAML attribute names
+        - Check case sensitivity
+        - Ensure IdP sends required attributes
+      </Tab>
+      <Tab title="Invalid Mapping">
+        **Error:** `Attribute mapping failed`
+        
+        **Solution:**
+        - Review attribute mapping configuration
+        - Test with sample data
+        - Check attribute format requirements
+      </Tab>
+    </Tabs>
+  </Accordion>
+</AccordionGroup>
+
+### Debug Mode
+
+Enable debug logging for detailed troubleshooting:
+
+<CodeGroup>
+  <CodeGroupItem title="Environment Variable">
+    ```bash
+    export DEBUG=samlify:*
+    npm start
+    ```
+  </CodeGroupItem>
+  <CodeGroupItem title="Application Logs">
+    ```bash
+    # Check SAML-specific logs
+    tail -f logs/app.log | grep -i saml
+    
+    # Monitor authentication attempts
+    tail -f logs/app.log | grep "SAML.*callback"
+    ```
+  </CodeGroupItem>
+</CodeGroup>
+
+## Security Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Certificate Management">
+    <ul>
+      <li>Use proper certificates in production</li>
+      <li>Implement certificate rotation</li>
+      <li>Store private keys securely</li>
+      <li>Monitor certificate expiration</li>
+    </ul>
+  </Card>
+  <Card title="URL Security">
+    <ul>
+      <li>Use HTTPS for all endpoints</li>
+      <li>Validate relay states</li>
+      <li>Implement proper session management</li>
+      <li>Use secure cookie settings</li>
+    </ul>
+  </Card>
+  <Card title="Attribute Security">
+    <ul>
+      <li>Validate all SAML attributes</li>
+      <li>Sanitize user input</li>
+      <li>Implement proper authorization</li>
+      <li>Log security events</li>
+    </ul>
+  </Card>
+  <Card title="Monitoring">
+    <ul>
+      <li>Monitor authentication success rates</li>
+      <li>Set up alerts for failures</li>
+      <li>Track configuration changes</li>
+      <li>Audit access logs regularly</li>
+    </ul>
+  </Card>
+</CardGroup>
+
+## Support
+
+<CardGroup cols={2}>
+  <Card title="Documentation">
+    <ul>
+      <li><a href="/docs/saml/configuration">Configuration Guide</a></li>
+      <li><a href="/docs/saml/troubleshooting">Troubleshooting</a></li>
+      <li><a href="/docs/saml/security">Security Guide</a></li>
+      <li><a href="/docs/api">API Reference</a></li>
+    </ul>
+  </Card>
+  <Card title="Contact">
+    <ul>
+      <li>Email: support@study-compass.com</li>
+      <li>Slack: #saml-support</li>
+      <li>GitHub Issues</li>
+      <li>Emergency: +1-555-SAML-HELP</li>
+    </ul>
+  </Card>
+</CardGroup>
+
+<Callout type="info">
+  For urgent SAML integration issues, contact our support team with your university name and error details.
+</Callout>

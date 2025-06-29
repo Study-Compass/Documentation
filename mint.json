@@ -70,6 +70,12 @@
       ]
     },
     {
+      "group" : "Backend Authentication Infrastructure",
+      "pages" : [
+        "backend/auth.SAML.mdx"
+      ]
+    },
+    {
       "group": "API Documentation",
       "pages": [
         "api-reference/introduction"
